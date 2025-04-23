@@ -197,8 +197,7 @@ export {
   getSensorAnalytics
 };
 
-// Get last 50 readings from past 6 hours
-// GET /readings/manhole/:manholeId?limit=50&timeRange=6
+
 // Get all critical alerts from past 48 hours
 // GET /readings/alerts?hours=48
 // Get daily average temperature for specific manhole
