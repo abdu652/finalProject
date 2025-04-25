@@ -17,7 +17,6 @@ const userSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    required: [true, 'Phone number is required'],
     match: [/^[0-9]{10}$/, 'Please enter a valid phone number']
   },
   email: {
@@ -48,29 +47,13 @@ const userSchema = new mongoose.Schema({
   },
   assignments: [{
     manholeId: String,
-    task: string,
+    task: String,
     date: {
       type: Date,
       default: Date.now
     }
   }]
 }, { timestamps: true });
-
-// Hash password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  this.password = await bcrypt.hash(this.password, 10);
-  next();
-});
-
-// Generate JWT token
-userSchema.methods.generateAuthToken = function() {
-  return jwt.sign(
-    { id: this._id, role: this.role },
-    process.env.JWT_SECRET,
-    { expiresIn: '1d' }
-  );
-};
 
 
 

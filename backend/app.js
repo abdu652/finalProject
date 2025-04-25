@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { urlencoded } from 'express';
 import dotenv from 'dotenv';
 import db from './configure/db.confige.js';
 import userRoute from './routes/user.route.js';

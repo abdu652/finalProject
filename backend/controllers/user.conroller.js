@@ -136,7 +136,7 @@ const signin = async (req, res) => {
           id: user._id,
           name: user.name,
           email: user.email,
-          phone: user.phone,
+          phone:user.phone,
           role: user.role,
           status: user.status
         }
@@ -144,7 +144,7 @@ const signin = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Signin error:', error);
+    console.error('Signin error:', error.message);
     return res.status(500).json({ 
       success: false,
       message: 'Internal server error',
