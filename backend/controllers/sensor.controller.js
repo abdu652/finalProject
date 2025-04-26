@@ -1,19 +1,7 @@
 import mongoose from 'mongoose';
 import SensorReading from '../models/sensorReading.model.js';
 import Manhole from '../models/manhole.model.js';
-
-// Helper to check threshold violations
-const checkThresholds = (reading, thresholds) => {
-  const alerts = [];
-  const { sewageLevel, methaneLevel, flowRate } = reading;
-  const { maxDistance, maxGas, minFlow } = thresholds;
-
-  if (sewageLevel > maxDistance) alerts.push('high_sewage');
-  if (methaneLevel > maxGas) alerts.push('gas_leak');
-  if (flowRate < minFlow) alerts.push('blockage_risk');
-
-  return alerts.length > 0 ? alerts : null;
-};
+import { checkThresholds, determineStatus } from '../helpers/checkThreshold.js';
 
 // 1. Create New Sensor Reading
 const createReading = async (req, res) => {
@@ -37,11 +25,14 @@ const createReading = async (req, res) => {
       });
     }
 
-    // Check for alerts
-    const alertTypes = checkThresholds(sensors, thresholds || {}) || [];
-    const status = alertTypes.length > 0 
-      ? alertTypes.includes('gas_leak') ? 'critical' : 'warning'
-      : 'normal';
+    // Check for alerts and determine status
+    const alertTypes = checkThresholds(sensors, thresholds || {
+      maxDistance: 2.5,
+      maxGas: 1000,
+      minFlow: 0.1
+    });
+    
+    const status = determineStatus(alertTypes);
 
     // Create reading
     const newReading = new SensorReading({
@@ -52,14 +43,15 @@ const createReading = async (req, res) => {
         maxGas: 1000,      // ppm
         minFlow: 0.1       // m/s
       },
-      lastCalibration,
+      lastCalibration: lastCalibration || Date.now(),
       status,
-      alertTypes
+      alertTypes,
+      timestamp: new Date()
     });
 
     await newReading.save();
 
-    // Update manhole last inspection if critical
+    // Update manhole status if critical
     if (status === 'critical') {
       await Manhole.findByIdAndUpdate(manholeId, {
         lastInspection: Date.now(),
@@ -70,27 +62,34 @@ const createReading = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: 'Reading recorded',
-      data: newReading
+      data: {
+        ...newReading.toObject(),
+        manholeCode: manhole.code // Include manhole info in response
+      }
     });
 
   } catch (error) {
     console.error('Create reading error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-// 2. Get Readings by Manhole
+// 2. Get Readings by Manhole (Optimized)
 const getReadingsByManhole = async (req, res) => {
   try {
     const { manholeId } = req.params;
-    const { limit = 100, timeRange } = req.query;
+    const { limit = 100, timeRange = '24', status } = req.query;
 
-    let query = { manholeId };
+    // Build query
+    const query = { manholeId };
+    if (status) query.status = status;
     
-    if (timeRange) {
+    // Time range filtering
+    if (timeRange && !isNaN(timeRange)) {
       const hoursAgo = new Date();
       hoursAgo.setHours(hoursAgo.getHours() - parseInt(timeRange));
       query.timestamp = { $gte: hoursAgo };
@@ -98,7 +97,8 @@ const getReadingsByManhole = async (req, res) => {
 
     const readings = await SensorReading.find(query)
       .sort({ timestamp: -1 })
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean(); // Faster for read-only
 
     return res.status(200).json({
       success: true,
@@ -110,42 +110,60 @@ const getReadingsByManhole = async (req, res) => {
     console.error('Get readings error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Failed to retrieve readings'
     });
   }
 };
 
-// 3. Get Critical Alerts
+// 3. Get Critical Alerts (Enhanced)
 const getCriticalReadings = async (req, res) => {
   try {
-    const { hours = 24 } = req.query;
+    const { hours = 24, limit = 50 } = req.query;
     const timeThreshold = new Date(Date.now() - hours * 60 * 60 * 1000);
 
     const readings = await SensorReading.find({
       status: 'critical',
       timestamp: { $gte: timeThreshold }
-    }).populate('manholeId', 'code location');
+    })
+    .sort({ timestamp: -1 })
+    .limit(parseInt(limit))
+    .populate({
+      path: 'manholeId',
+      select: 'code location zone',
+      model: Manhole
+    })
+    .lean();
 
     return res.status(200).json({
       success: true,
       count: readings.length,
-      data: readings
+      data: readings.map(r => ({
+        ...r,
+        manhole: r.manholeId // Flatten populated field
+      }))
     });
 
   } catch (error) {
     console.error('Get alerts error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Failed to retrieve critical alerts'
     });
   }
 };
 
-// 4. Sensor Data Analytics
+// 4. Sensor Data Analytics (Improved)
 const getSensorAnalytics = async (req, res) => {
   try {
-    const { manholeId, metric, period = '24h' } = req.query;
+    const { manholeId, metric, period = '24h', groupBy } = req.query;
     
+    if (!metric || !['sewageLevel', 'methaneLevel', 'flowRate', 'temperature'].includes(metric)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid metric parameter is required'
+      });
+    }
+
     // Calculate time range
     const range = period.endsWith('h') 
       ? parseInt(period) * 60 * 60 * 1000 
@@ -154,23 +172,32 @@ const getSensorAnalytics = async (req, res) => {
     const timeThreshold = new Date(Date.now() - range);
 
     // Build query
-    const match = { timestamp: { $gte: timeThreshold } };
-    if (manholeId) match.manholeId = manholeId;
+    const match = { 
+      timestamp: { $gte: timeThreshold },
+      [`sensors.${metric}`]: { $exists: true }
+    };
+    if (manholeId) match.manholeId = new mongoose.Types.ObjectId(manholeId);
 
-    // Group by time interval
-    const interval = range <= 86400000 ? 'hour' : 'day'; // <=24h? hourly : daily
+    // Determine grouping interval
+    const interval = groupBy || (range <= 86400000 ? 'hour' : 'day');
     
     const results = await SensorReading.aggregate([
       { $match: match },
       {
         $group: {
           _id: {
-            [interval]: { $hour: '$timestamp' },
-            ...(interval === 'day' && { day: { $dayOfMonth: '$timestamp' } })
+            ...(interval === 'hour' && { hour: { $hour: '$timestamp' } }),
+            ...(interval === 'day' && { 
+              day: { $dayOfMonth: '$timestamp' },
+              month: { $month: '$timestamp' },
+              year: { $year: '$timestamp' }
+            }),
+            ...(manholeId && { manholeId: '$manholeId' })
           },
           avgValue: { $avg: `$sensors.${metric}` },
           maxValue: { $max: `$sensors.${metric}` },
-          minValue: { $min: `$sensors.${metric}` }
+          minValue: { $min: `$sensors.${metric}` },
+          count: { $sum: 1 }
         }
       },
       { $sort: { '_id': 1 } }
@@ -178,14 +205,22 @@ const getSensorAnalytics = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: results
+      data: results.map(item => ({
+        ...item._id,
+        stats: {
+          avg: parseFloat(item.avgValue.toFixed(2)),
+          max: parseFloat(item.maxValue.toFixed(2)),
+          min: parseFloat(item.minValue.toFixed(2)),
+          count: item.count
+        }
+      }))
     });
 
   } catch (error) {
     console.error('Analytics error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Failed to generate analytics'
     });
   }
 };
@@ -196,9 +231,3 @@ export {
   getCriticalReadings,
   getSensorAnalytics
 };
-
-
-// Get all critical alerts from past 48 hours
-// GET /readings/alerts?hours=48
-// Get daily average temperature for specific manhole
-// GET /readings/analytics?manholeId=123&metric=temperature&period=7d
