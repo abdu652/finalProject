@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import SensorReading from '../models/sensorReading.model.js';
+import SensorReading from '../models/sensor.model.js';
 import Manhole from '../models/manhole.model.js';
 import { checkThresholds, determineStatus } from '../helpers/checkThreshold.js';
 
