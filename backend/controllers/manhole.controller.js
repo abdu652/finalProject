@@ -1,5 +1,5 @@
 import Manhole from '../models/manhole.model.js';
-
+import mongoose from 'mongoose';
 const createManhole = async (req, res) => {
   try {
     const { code, location, installedDate, status, notes } = req.body;
