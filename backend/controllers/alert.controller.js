@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import Alert from '../models/alert.model.js';
 import User from '../models/user.model.js';
-
+import assignWorkerToAlert from '../helpers/assignWork.js';
 // Alert Levels and Types Configuration
 const ALERT_LEVELS = ['low', 'medium', 'high', 'critical'];
 const ALERT_TYPES = [

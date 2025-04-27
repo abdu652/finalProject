@@ -4,7 +4,7 @@ import {
   updateMaintenanceStatus,
   addMaintenanceParts,
   getMaintenanceLogs
-} from '../controllers/maintenanceLog.controller.js';
+} from '../controllers/maintenance.controller.js';
 
 const router = express.Router();
 

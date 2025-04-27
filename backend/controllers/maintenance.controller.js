@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import MaintenanceLog from '../models/maintenanceLog.model.js';
+import MaintenanceLog from '../models/maintenance.model.js';
 import Manhole from '../models/manhole.model.js';
 import User from '../models/user.model.js';
 

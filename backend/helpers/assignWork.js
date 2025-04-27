@@ -54,3 +54,5 @@ const assignWorkerToAlert = async (alertId, workerId = null) => {
     };
   }
 };
+
+export default assignWorkerToAlert
