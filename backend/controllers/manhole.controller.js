@@ -11,7 +11,7 @@ const createManhole = async (req, res) => {
         message: 'Code and location coordinates are required' 
       });
     }
-
+// user interface or page is needed in frontend
     const newManhole = new Manhole({
       _id: new mongoose.Types.ObjectId(),
       code,
@@ -123,10 +123,10 @@ const updateManholeStatus = async (req, res) => {
       const { id } = req.params;
       const { status, notes } = req.body;
   
-      if (!status) {
+      if (!status || !id) {
         return res.status(400).json({
           success: false,
-          message: 'Status is required'
+          message: 'Status and id are required'
         });
       }
   
@@ -139,14 +139,7 @@ const updateManholeStatus = async (req, res) => {
         },
         { new: true }
       );
-  
-      if (!updatedManhole) {
-        return res.status(404).json({
-          success: false,
-          message: 'Manhole not found'
-        });
-      }
-  
+      
       return res.status(200).json({
         success: true,
         message: 'Manhole status updated',
