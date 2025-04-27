@@ -153,4 +153,78 @@ const signin = async (req, res) => {
   }
 };
 
-export { signup, signin };
+const updateUser = async (req,res)=>{
+  const {id} = req.params;
+  const {name, email, phone, role, status,password} = req.body;
+  const user = await User.findById(id);
+  if(!user){
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+  }
+  if(!validateEmail(email)){
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide a valid email address'
+    });
+  }
+  if(name) user.name = name;
+  if(email) user.email = email;
+  if(phone) user.phone = phone;
+  if(role) user.role = role;
+  if(status) user.status = status;
+  if(password) user.password = await bcrypt.hash(password, 12);
+  
+  await user.save();
+}
+
+const getUser = async (req,res)=>{
+  const {id} = req.params;
+  const user = await User.findById(id);
+  if(!user){
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+  }
+  return res.status(200).json({
+    success: true,
+    message: 'User found',
+    data: user
+  });
+}
+
+const getAllUsers = async (req,res)=>{
+  const users = await User.find();
+  if(!users){
+    return res.status(404).json({
+      success: false,
+      message: 'No users found'
+    });
+  }
+  return res.status(200).json({
+    success: true,
+    message: 'Users found',
+    data: users
+  });
+}
+
+const deleteUser = async (req,res)=>{
+  const {id} = req.params;
+  const user = await
+  User.findById(id);
+  if(!user){
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+  }
+  await user.remove();
+  return res.status(200).json({
+    success: true,
+    message: 'User deleted successfully'
+  });
+}
+
+export {signin, signup, getAllUsers, getUser, updateUser, deleteUser};

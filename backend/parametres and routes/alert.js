@@ -38,7 +38,7 @@ router.get('/', getAlerts);
 //            [notes]: string 
 //          }
 // ------------------------------------------------------------------
-router.patch('/:alertId/status', updateAlertStatus);
+router.put('/:alertId/status', updateAlertStatus);
 
 // ------------------------------------------------------------------
 // @route   POST /api/alerts/:alertId/notes
