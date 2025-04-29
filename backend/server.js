@@ -2,6 +2,7 @@ import express from 'express';
 import mqtt from 'mqtt';
 import db from './configure/db.confige.js';
 import SensorReading from './models/sensor.model.js';
+import router from './routes/index.js';
 
 const app = express();
 const port = 3000;
@@ -35,11 +36,13 @@ client.on('message', async (topic, message) => {
     console.error('Error processing MQTT data:', error);
   }
 });
-
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use('/api', router);
 // Start server
 (async () => {
   await db();
-  app.listen(port, () => {
+  app.listen(port, a() => {
     console.log(`Server and MQTT listener running on port ${port}`);
   });
 })();
