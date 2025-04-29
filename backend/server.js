@@ -1,10 +1,10 @@
 import express from 'express';
 import mqtt from 'mqtt';
 import db from './configure/db.confige.js';
-import SensorReading from './models/sensorReading.model.js';
+import SensorReading from './models/sensor.model.js';
 
 const app = express();
-const port = 5000;
+const port = 3000;
 
 // MQTT Configuration
 const mqttBroker = 'mqtt://broker.hivemq.com'; // Use your broker URL
@@ -23,7 +23,7 @@ client.on('message', async (topic, message) => {
   try {
     const data = JSON.parse(message.toString());
     
-    await SensorReading.create({
+    await Sensor.create({
       deviceId: data.deviceId,
       waterLevel: data.waterLevel,
       methaneLevel: data.methaneLevel,
