@@ -3,7 +3,7 @@ import mqtt from 'mqtt';
 import db from './configure/db.confige.js';
 import Sensor from './models/sensor.model.js'; // Fixed from SensorReading to Sensor
 import router from './routes/index.js';
-
+import cors from 'cors';
 const app = express();
 const port = 3000;
 
@@ -39,6 +39,13 @@ client.on('message', async (topic, message) => {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Enable CORS for all routes
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use('/api', router);
 
 // Start server
