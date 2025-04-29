@@ -1,14 +1,14 @@
 import express from 'express';
 import mqtt from 'mqtt';
 import db from './configure/db.confige.js';
-import SensorReading from './models/sensor.model.js';
+import Sensor from './models/sensor.model.js'; // Fixed from SensorReading to Sensor
 import router from './routes/index.js';
 
 const app = express();
 const port = 3000;
 
-// MQTT Configuration
-const mqttBroker = 'mqtt://broker.hivemq.com'; // Use your broker URL
+// MQTT Configuration - Using local Mosquitto broker
+const mqttBroker = 'mqtt://localhost'; // Changed to local Mosquitto
 const topic = 'drainage/sensor-data';
 
 // Connect to MQTT Broker
@@ -25,9 +25,9 @@ client.on('message', async (topic, message) => {
     const data = JSON.parse(message.toString());
     
     await Sensor.create({
-      deviceId: data.deviceId,
-      waterLevel: data.waterLevel,
-      methaneLevel: data.methaneLevel,
+      deviceId: "ESP32_1", // You can make this dynamic if needed
+      waterLevel: data.water,
+      methaneLevel: data.methane,
       timestamp: new Date()
     });
     
@@ -36,13 +36,15 @@ client.on('message', async (topic, message) => {
     console.error('Error processing MQTT data:', error);
   }
 });
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api', router);
+
 // Start server
 (async () => {
   await db();
-  app.listen(port, a() => {
+  app.listen(port, () => { // Fixed syntax error (removed 'a')
     console.log(`Server and MQTT listener running on port ${port}`);
   });
 })();
