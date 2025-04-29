@@ -17,11 +17,20 @@ export default function LoginForm({ setUser }) {
     
     try {
       const userData = await login(email, password)
-      localStorage.setItem('token', userData.token)
+      localStorage.setItem('token', userData.token);
+      const {role} = userData.data.user
       console.log("User data:", userData)
       setUser(userData)
       setError("successfully logged in");
-      window.location.href = '/dashboard' // Redirect to dashboard after successful login
+      if(role === "worker"){
+        window.location.href = '/delivery' // Redirect to delivery view for workers
+      }
+      else if(role === "customer"){
+        window.location.href = '/customer' // Redirect to customer view for customers
+      }
+      else{
+        window.location.href = '/' // Redirect to home for other roles
+      }
     } catch (err) {
       setError(err.message || 'Invalid credentials. Please try again.')
     } finally {
