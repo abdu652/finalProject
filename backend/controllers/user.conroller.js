@@ -7,7 +7,6 @@ import { validateEmail } from '../helpers/userUtils.js';
 const signup = async (req, res) => {
   try {
     const { name, email, password, salary, status, role, assignments, phone } = req.body;
-
     // Validation
     if (!name || !email || !password || salary === undefined) {
       return res.status(400).json({ 
@@ -85,7 +84,7 @@ const signup = async (req, res) => {
 const signin = async (req, res) => {
   try {
     const { email, password } = req.body;
-
+    console.log('Signin request:', req.body);
     // Validation
     if (!email || !password) {
       return res.status(400).json({

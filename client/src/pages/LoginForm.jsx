@@ -18,7 +18,10 @@ export default function LoginForm({ setUser }) {
     try {
       const userData = await login(email, password)
       localStorage.setItem('token', userData.token)
+      console.log("User data:", userData)
       setUser(userData)
+      setError("successfully logged in");
+      window.location.href = '/dashboard' // Redirect to dashboard after successful login
     } catch (err) {
       setError(err.message || 'Invalid credentials. Please try again.')
     } finally {
