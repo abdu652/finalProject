@@ -162,7 +162,7 @@ const signin = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, role, status, password } = req.body;
+    const { name, email, phone, role, status, password,salary } = req.body;
 
     const user = await User.findById(id);
     if (!user) {
@@ -185,6 +185,7 @@ const updateUser = async (req, res) => {
     if (phone) user.phone = phone;
     if (role) user.role = role;
     if (status) user.status = status;
+    if(salary) user.salary = salary;
     if (password) user.password = await bcrypt.hash(password, 12);
     
     await user.save();

@@ -52,6 +52,6 @@ app.use('/api', router);
 (async () => {
   await db();
   app.listen(port, () => { // Fixed syntax error (removed 'a')
-    console.log(`Server and MQTT listener running on port ${port}`);
+    console.log(`Server listener running on port ${port}`);
   });
 })();
