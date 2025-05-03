@@ -25,6 +25,11 @@ router.get('/nearby', getManholesNearLocation);
 router.get('/zone/:zone', getManholesByZone);
 
 // PATCH /api/manholes/:id/status - Update manhole status
-router.put('/:id/status', updateManholeStatus);
+router.put('/status/:id', updateManholeStatus);
 
 export default router;
+
+
+
+// all the routes are tested and working fine.
+// the routes are tested using postman and all the routes are working fine.

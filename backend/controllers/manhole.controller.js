@@ -198,7 +198,22 @@ const updateManholeStatus = async (req, res) => {
           message: 'Status and id are required'
         });
       }
-  
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid manhole ID'
+        });
+      }
+      // Check if the manhole exists
+      const manhole = await Manhole.findById(id);
+      console.log('Manhole:', manhole);
+      if (Object.keys(manhole).length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Manhole not found'
+        });
+      }
+
       const updatedManhole = await Manhole.findByIdAndUpdate(
         id,
         { 
