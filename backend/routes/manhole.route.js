@@ -5,7 +5,8 @@ import {
   getManholesNearLocation,
   getManholesByZone,
   updateManholeStatus,
-  deleteAllManholes
+  deleteAllManholes,
+  deleteManholeById
 } from '../controllers/manhole.controller.js';
 
 const router = express.Router();
@@ -16,6 +17,7 @@ router.post('/', createManhole);
 // GET /api/manholes - Get all manholes
 router.get('/', getAllManholes);
 router.delete('/', deleteAllManholes);                                    
+router.delete('/:id', deleteManholeById);
 // GET /api/manholes/nearby - Get manholes near location
 router.get('/nearby', getManholesNearLocation);
 

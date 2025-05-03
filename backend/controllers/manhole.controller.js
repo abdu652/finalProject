@@ -11,6 +11,13 @@ const createManhole = async (req, res) => {
         message: 'Code and location coordinates are required' 
       });
     }
+    const alreadyExists = await Manhole.findOne({ code });
+    if (alreadyExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Manhole with this code already exists'
+      });
+    }
 // user interface or page is needed in frontend
     const newManhole = new Manhole({
       _id: new mongoose.Types.ObjectId(),
@@ -21,7 +28,7 @@ const createManhole = async (req, res) => {
       status: status || 'active',
       notes: notes || ''
     });
-
+    
     await newManhole.save();
 
     return res.status(201).json({
@@ -51,7 +58,7 @@ const getAllManholes = async (req, res) => {
       }
       // Sort by installedDate in descending order
       manholes.sort((a, b) => new Date(b.installedDate) - new Date(a.installedDate));
-      
+
       return res.status(200).json({
         success: true,
         count: manholes.length,
@@ -116,6 +123,40 @@ const deleteAllManholes = async () => {
     console.error('Deletion error:', error);
   } finally {
     mongoose.disconnect();
+  }
+};
+// DELETE /api/manholes/:id
+const deleteManholeById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid manhole ID' 
+      });
+    }
+
+    const deletedManhole = await Manhole.findByIdAndDelete(id);
+
+    if (!deletedManhole) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Manhole not found' 
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Manhole deleted successfully',
+      data: deletedManhole
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error: ' + error.message
+    });
   }
 };
 // get manholes by zone
@@ -189,5 +230,6 @@ const updateManholeStatus = async (req, res) => {
     getManholesNearLocation, 
     getManholesByZone, 
     updateManholeStatus,
-    deleteAllManholes
+    deleteAllManholes,
+    deleteManholeById
 };
