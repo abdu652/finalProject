@@ -9,3 +9,6 @@ router.put('/:id',updateUser);
 router.delete('/:id',deleteUser);
 
 export default router;
+
+
+// All user routes are tested and working fine.

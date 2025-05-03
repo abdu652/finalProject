@@ -43,6 +43,14 @@ const createManhole = async (req, res) => {
 const getAllManholes = async (req, res) => {
     try {
       const manholes = await Manhole.find().sort({ installedDate: -1 });
+      if(manholes.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No manholes found'
+        });
+      }
+      // Sort by installedDate in descending order
+      manholes.sort((a, b) => new Date(b.installedDate) - new Date(a.installedDate));
       
       return res.status(200).json({
         success: true,
@@ -59,50 +67,70 @@ const getAllManholes = async (req, res) => {
     }
   };
 // Get manholes near a location
-  const getManholesNearLocation = async (req, res) => {
-    try {
-      const { longitude, latitude, maxDistance = 1000 } = req.query; // maxDistance in meters
-  
-      if (!longitude || !latitude) {
-        return res.status(400).json({
-          success: false,
-          message: 'Longitude and latitude are required'
-        });
-      }
-  
-      const manholes = await Manhole.find({
-        'location.coordinates': {
-          $near: {
-            $geometry: {
-              type: "Point",
-              coordinates: [parseFloat(longitude), parseFloat(latitude)]
-            },
-            $maxDistance: parseInt(maxDistance)
-          }
-        }
-      });
-  
-      return res.status(200).json({
-        success: true,
-        count: manholes.length,
-        data: manholes
-      });
-  
-    } catch (error) {
-      console.error('Geospatial query error:', error);
-      return res.status(500).json({
+const getManholesNearLocation = async (req, res) => {
+  try {
+    const { longitude, latitude, maxDistance = 1000 } = req.query;
+
+    // Validate inputs
+    if (!longitude || !latitude) {
+      return res.status(400).json({
         success: false,
-        message: 'Internal server error'
+        message: 'Longitude and latitude are required'
       });
     }
-  };
+
+    const manholes = await Manhole.find({
+      "location.coordinates": {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: [parseFloat(longitude), parseFloat(latitude)]
+          },
+          $maxDistance: parseInt(maxDistance)
+        }
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      count: manholes.length,
+      data: manholes
+    });
+
+  } catch (error) {
+    console.error('Geospatial query error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error: ' + error.message
+    });
+  }
+};
+
+// deltete all amnhole
+const deleteAllManholes = async () => {
+  try {
+    // await mongoose.connect('your_mongodb_uri');
+    const result = await Manhole.deleteMany({});
+    console.log(`Deleted ${result.deletedCount} manholes`);
+  } catch (error) {
+    console.error('Deletion error:', error);
+  } finally {
+    mongoose.disconnect();
+  }
+};
 // get manholes by zone
 const getManholesByZone = async (req, res) => {
 try {
     const { zone } = req.params;
-
     const manholes = await Manhole.find({ 'location.zone': zone });
-
+    if(manholes.length === 0) {
+        return res.status(404).json({
+            success: false,
+            message: 'No manholes found in this zone'
+        });
+    }
+    // Sort by installedDate in descending order
+    manholes.sort((a, b) => new Date(b.installedDate) - new Date(a.installedDate));
     return res.status(200).json({
     success: true,
     count: manholes.length,
@@ -160,5 +188,6 @@ const updateManholeStatus = async (req, res) => {
     getAllManholes, 
     getManholesNearLocation, 
     getManholesByZone, 
-    updateManholeStatus 
+    updateManholeStatus,
+    deleteAllManholes
 };
