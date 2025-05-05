@@ -119,14 +119,46 @@ const getReadingsByManhole = async (req, res) => {
 const getCriticalReadings = async (req, res) => {
   try {
     const { hours = 24, limit = 50 } = req.query;
-    const timeThreshold = new Date(Date.now() - hours * 60 * 60 * 1000);
+    
+    // Validate query parameters
+    const hoursNum = parseInt(hours);
+    const limitNum = parseInt(limit);
+    
+    if (isNaN(hoursNum) || hoursNum <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Hours must be a positive number'
+      });
+    }
+    
+    if (isNaN(limitNum) || limitNum <= 0 || limitNum > 1000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Limit must be a positive number and not exceed 1000'
+      });
+    }
 
+    const timeThreshold = new Date(Date.now() - hoursNum * 60 * 60 * 1000);
+
+    // Check if critical readings exist within the time frame
+    const criticalExist = await SensorReading.exists({
+      status: 'critical',
+      timestamp: { $gte: timeThreshold }
+    });
+    
+    if (!criticalExist) {
+      return res.status(404).json({
+        success: false, 
+        message: 'No critical alerts found in the specified time frame'
+      });
+    }
+    
     const readings = await SensorReading.find({
       status: 'critical',
       timestamp: { $gte: timeThreshold }
     })
     .sort({ timestamp: -1 })
-    .limit(parseInt(limit))
+    .limit(limitNum)
     .populate({
       path: 'manholeId',
       select: 'code location zone',
@@ -139,15 +171,17 @@ const getCriticalReadings = async (req, res) => {
       count: readings.length,
       data: readings.map(r => ({
         ...r,
-        manhole: r.manholeId // Flatten populated field
+        manhole: r.manholeId, // Flatten populated field
+        manholeId: undefined // Remove the original field
       }))
     });
 
   } catch (error) {
-    console.error('Get alerts error:', error);
+    console.error('Get critical readings error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to retrieve critical alerts'
+      message: 'Failed to retrieve critical alerts',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

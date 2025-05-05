@@ -30,6 +30,5 @@ router.put('/status/:id', updateManholeStatus);
 export default router;
 
 
-
 // all the routes are tested and working fine.
 // the routes are tested using postman and all the routes are working fine.
