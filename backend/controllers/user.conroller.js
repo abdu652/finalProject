@@ -164,7 +164,7 @@ const updateUser = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Update user error:', error);
+    console.error('Update user error:', error.message);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
