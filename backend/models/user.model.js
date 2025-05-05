@@ -1,66 +1,46 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 
 const userSchema = new mongoose.Schema({
-  _id: mongoose.Schema.Types.ObjectId,
   name: {
     type: String,
-    required: [true, 'Name is required'],
+    required: true,
+    trim: true
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
     trim: true
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters'],
-    select: false // Never return password in queries
+    required: true,
+    minlength: 6,
+    select: false
   },
-  phone: {
-    type: String,
-    match: [/^[0-9]{10}$/, 'Please enter a valid phone number']
-  },
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-    unique: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
-  },
-  salary: {
-    type: Number,
-    min: [0, 'Salary cannot be negative']
-  },
+  phone: String,
   role: {
     type: String,
     enum: ['admin', 'worker', 'manager'],
     default: 'worker'
   },
   status: {
-    availability: {
-      type: String,
-      enum: ['available', 'busy', 'offline'],
-      default: 'available'
-    },
-    lastActive: {
-      type: Date,
-      default: Date.now
-    }
-  },
-  assignments: [{
-    manholeId: String,
-    task: String,
-    date: {
-      type: Date,
-      default: Date.now
-    }
-  }]
+    lastActive: Date
+  }
 }, { timestamps: true });
 
+// Hash password before saving
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
 
-
-// Update last active timestamp
-userSchema.methods.updateLastActive = function() {
-  this.status.lastActive = Date.now();
-  return this.save();
+// Compare password method
+userSchema.methods.checkPassword = async function(password) {
+  return await bcrypt.compare(password, this.password);
 };
 
 const User = mongoose.model('User', userSchema);

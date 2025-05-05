@@ -84,78 +84,41 @@ const signup = async (req, res) => {
 const signin = async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log('Signin request:', req.body);
-    // Validation
+
+    // Basic validation
     if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email and password are required'
-      });
+      return res.status(400).json({ error: 'Email and password required' });
     }
 
-    if (!validateEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide a valid email address'
-      });
-    }
-
-    // Find user with password
+    // Find user
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
-      });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Verify password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
-      });
+    // Check password
+    if (!(await user.checkPassword(password))) {
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Update last active time
-    user.status.lastActive = Date.now();
+    // Update last active
+    user.status.lastActive = new Date();
     await user.save();
 
-    // Generate JWT token
+    // Create token
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
 
-    // Remove sensitive data before sending response
-    const userData = user.toObject();
-    delete userData.password;
-
-    return res.status(200).json({
-      success: true,
-      message: 'Login successful',
-      data: {
-        token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role,
-          status: user.status
-        }
-      }
-    });
+    // Return response without password
+    const { password: _, ...userData } = user.toObject();
+    return res.json({ token, user: userData });
 
   } catch (error) {
     console.error('Signin error:', error);
-    return res.status(500).json({ 
-      success: false,
-      message: 'Internal server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    return res.status(500).json({ error: 'Login failed' });
   }
 };
 
