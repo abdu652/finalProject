@@ -20,3 +20,6 @@ router.put('/status/:logId', updateMaintenanceStatus);
 router.patch('/parts/:logId', addMaintenanceParts);
 
 export default router;
+
+
+// all routes are tested and working fine (except the last one)
