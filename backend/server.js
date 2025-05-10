@@ -1,57 +1,103 @@
 import express from 'express';
 import mqtt from 'mqtt';
 import db from './configure/db.confige.js';
-import Sensor from './models/sensor.model.js'; // Fixed from SensorReading to Sensor
+import Sensor from './models/sensor.model.js';
 import router from './routes/index.js';
 import cors from 'cors';
-const app = express();
-const port = 3000;
 
-// MQTT Configuration - Using local Mosquitto broker
-const mqttBroker = 'mqtt://localhost'; // Changed to local Mosquitto
-const topic = 'drainage/sensor-data';
+const app = express();
+const port = process.env.PORT || 3000;
+
+// ====================== MQTT Configuration ======================
+const MQTT_BROKER_URL = process.env.MQTT_BROKER_URL || 'mqtt://broker.hivemq.com'; // Default: HiveMQ public broker
+const MQTT_TOPIC = process.env.MQTT_TOPIC || 'drainage/sensor-data';
+
+// MQTT Client Options
+const mqttOptions = {
+  clientId: `nodejs-server_${Math.random().toString(16).substring(2, 8)}`,
+  clean: true,
+  connectTimeout: 4000,
+  reconnectPeriod: 1000,
+};
 
 // Connect to MQTT Broker
-const client = mqtt.connect(mqttBroker);
+const mqttClient = mqtt.connect(MQTT_BROKER_URL, mqttOptions);
 
-client.on('connect', () => {
-  console.log('Connected to MQTT Broker');
-  client.subscribe(topic);
+// MQTT Event Handlers
+mqttClient.on('connect', () => {
+  console.log(`✅ MQTT Connected to: ${MQTT_BROKER_URL}`);
+  
+  mqttClient.subscribe(MQTT_TOPIC, { qos: 1 }, (err) => {
+    if (err) {
+      console.error('❌ MQTT Subscribe Error:', err);
+    } else {
+      console.log(`🔔 Subscribed to Topic: "${MQTT_TOPIC}" (QoS: 1)`);
+    }
+  });
 });
 
-// Handle incoming MQTT messages
-client.on('message', async (topic, message) => {
+mqttClient.on('error', (err) => {
+  console.error('❌ MQTT Connection Error:', err);
+});
+
+mqttClient.on('close', () => {
+  console.log('⚠️ MQTT Connection Closed');
+});
+
+mqttClient.on('reconnect', () => {
+  console.log('🔃 MQTT Reconnecting...');
+});
+
+// Handle Incoming MQTT Messages
+mqttClient.on('message', async (topic, message) => {
   try {
-    const data = JSON.parse(message.toString());
-    
-    await Sensor.create({
-      deviceId: "ESP32_1", // You can make this dynamic if needed
-      waterLevel: data.water,
-      methaneLevel: data.methane,
-      timestamp: new Date()
-    });
-    
-    console.log('Data saved:', data);
+    const payload = message.toString();
+    const data = JSON.parse(payload);
+
+    console.log(`📩 MQTT Message [${topic}]:`, data);
+
+    // console.log('💾 Sensor data saved to DB',data);
   } catch (error) {
-    console.error('Error processing MQTT data:', error);
+    console.error('❌ MQTT Message Processing Error:', error);
   }
 });
 
+// ====================== Express Server Setup ======================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-// Enable CORS for all routes
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
+// Routes
 app.use('/api', router);
 
-// Start server
-(async () => {
-  await db();
-  app.listen(port, () => { // Fixed syntax error (removed 'a')
-    console.log(`Server listener running on port ${port}`);
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    mqtt: mqttClient.connected ? 'connected' : 'disconnected',
   });
+});
+
+// Graceful Shutdown
+process.on('SIGINT', () => {
+  console.log('🛑 Shutting down gracefully...');
+  mqttClient.end();
+  process.exit(0);
+});
+
+// Start Server
+(async () => {
+  try {
+    await db(); // Initialize DB connection
+    app.listen(port, () => {
+      console.log(`🚀 Server running on http://localhost:${port}`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
 })();
