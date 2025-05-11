@@ -3,7 +3,7 @@ import io from 'socket.io-client';
 import './Table.css';
 
 const Table = () => {
-  const [latestData, setLatestData] = useState([]);
+  const [sensorDataHistory, setSensorDataHistory] = useState([]);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
   const [error, setError] = useState(null);
 
@@ -19,9 +19,24 @@ const Table = () => {
       setError(null);
     });
 
-    socket.on('sensorData', (data) => {
-      console.log('Received sensor data:', data);
-      setLatestData(Array.isArray(data) ? data : [data]); // Handle both array and single object
+    socket.on('sensorData', (newData) => {
+      console.log('Received sensor data:', newData);
+      
+      // Handle both array and single object data
+      const newDataArray = Array.isArray(newData) ? newData : [newData];
+      
+      // Add timestamp if not present
+      const dataWithTimestamps = newDataArray.map(item => ({
+        ...item,
+        timestamp: item.timestamp || new Date().toLocaleTimeString()
+      }));
+      
+      // Append new data to history
+      setSensorDataHistory(prevHistory => [
+        ...prevHistory,
+        ...dataWithTimestamps
+      ]);
+      
       setConnectionStatus('connected');
     });
 
@@ -44,34 +59,38 @@ const Table = () => {
   return (
     <div className="table-container">
       <h2>Live Sensor Data</h2>
-      <div className="connection-status">
+      <div className="connection-status" data-status={connectionStatus}>
         Status: {connectionStatus} {error && `- ${error}`}
       </div>
       
-      <table className="sensor-table">
-        <thead>
-          <tr>
-            <th>Sewage Level</th>
-            <th>Methane Level</th>
-            <th>Battery Level</th>
-          </tr>
-        </thead>
-        <tbody>
-          {latestData.length > 0 ? (
-            latestData.map((data, index) => (
-              <tr key={index}>
-                <td>{data.sewage ?? 'N/A'}</td>
-                <td>{data.methane ?? 'N/A'}</td>
-                <td>{data.battery ?? 'N/A'}</td>
-              </tr>
-            ))
-          ) : (
+      <div className="table-wrapper">
+        <table className="sensor-table">
+          <thead>
             <tr>
-              <td colSpan="3">No data available</td>
+              <th>Timestamp</th>
+              <th>Sewage Level</th>
+              <th>Methane Level</th>
+              <th>Battery Level</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {sensorDataHistory.length > 0 ? (
+              sensorDataHistory.map((data, index) => (
+                <tr key={index}>
+                  <td>{data.timestamp}</td>
+                  <td>{data.sewage ?? 'N/A'}</td>
+                  <td>{data.methane ?? 'N/A'}</td>
+                  <td>{data.battery ?? 'N/A'}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4">No data available</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
