@@ -1,27 +1,40 @@
-import React,{useEffect} from 'react'
-import { Link } from 'react-router-dom'
-import './Home.css' // Create this CSS file
-import io from 'socket.io-client;'
-
-let socket;
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import './Home.css';
+import io from 'socket.io-client';
 
 const Home = () => {
+  const [socket, setSocket] = useState(null);
+  const [latestData, setLatestData] = useState(null);
+
   useEffect(() => {
-    socket = io('http://localhost:3000'); // Replace with your server URL
-    socket.on('connect', () => {
+    const newSocket = io('http://localhost:3000', {
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    newSocket.on('connect', () => {
       console.log('Connected to socket.io server');
     });
-    socket.on('sensorData', (data) => {
+
+    newSocket.on('sensorData', (data) => {
       console.log('Sensor data:', data);
+      setLatestData(data);
     });
-    return () => {
-      socket.disconnect();
+
+    newSocket.on('disconnect', () => {
       console.log('Disconnected from socket.io server');
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.disconnect();
     };
   }, []);
 
   return (
-    <div className="auth-container" id ="home-container">
+    <div className="auth-container" id="home-container">
       <div className="auth-card" id="home-card">
         <h1 className="auth-title">🚀 Welcome to Delivery Tracker</h1>
         
@@ -30,7 +43,14 @@ const Home = () => {
             Track your packages in real-time with our intuitive delivery tracking system.
           </p>
           
-          <div className="feature-grid" id ="features">
+          {latestData && (
+            <div className="sensor-data">
+              <h3>Latest Tracking Data:</h3>
+              <pre>{JSON.stringify(latestData, null, 2)}</pre>
+            </div>
+          )}
+          
+          <div className="feature-grid" id="features">
             <div className="feature-card">
               <h3>📦 Real-Time Tracking</h3>
               <p>Monitor your deliveries live on an interactive map</p>
@@ -58,7 +78,7 @@ const Home = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Home
+export default Home;
