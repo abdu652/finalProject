@@ -1,8 +1,25 @@
-import React from 'react'
+import React,{useEffect} from 'react'
 import { Link } from 'react-router-dom'
 import './Home.css' // Create this CSS file
+import io from 'socket.io-client;'
+
+let socket;
 
 const Home = () => {
+  useEffect(() => {
+    socket = io('http://localhost:3000'); // Replace with your server URL
+    socket.on('connect', () => {
+      console.log('Connected to socket.io server');
+    });
+    socket.on('sensorData', (data) => {
+      console.log('Sensor data:', data);
+    });
+    return () => {
+      socket.disconnect();
+      console.log('Disconnected from socket.io server');
+    };
+  }, []);
+
   return (
     <div className="auth-container" id ="home-container">
       <div className="auth-card" id="home-card">

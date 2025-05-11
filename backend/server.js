@@ -1,35 +1,32 @@
 import express from 'express';
 import mqtt from 'mqtt';
 import db from './configure/db.confige.js';
-import Sensor from './models/sensor.model.js';
 import router from './routes/index.js';
 import cors from 'cors';
-import {Server} from 'socket.io';
-import {createServer} from 'http';
+import { Server } from 'socket.io';
+import { createServer } from 'http';
 import dotenv from 'dotenv';
-dotenv.config();
 
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
-const io = new Server(createServer(app), {
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST'],
   },
 });
-io.on('connection', (socket)=>{
-  console.log('a user connected');
-  socket.on('disconnect', () => {
-    console.log('user disconnected');
-  });
 
+io.on('connection', (socket) => {
+  console.log('User connected');
+  socket.on('disconnect', () => console.log('User disconnected'));
 });
-// ====================== MQTT Configuration ======================
-const MQTT_BROKER_URL = process.env.MQTT_BROKER_URL || 'mqtt://broker.hivemq.com'; // Default: HiveMQ public broker
+
+const MQTT_BROKER_URL = process.env.MQTT_BROKER_URL || 'mqtt://broker.hivemq.com';
 const MQTT_TOPIC = process.env.MQTT_TOPIC || 'drainage/sensor-data';
 
-// MQTT Client Options
 const mqttOptions = {
   clientId: `nodejs-server_${Math.random().toString(16).substring(2, 8)}`,
   clean: true,
@@ -37,50 +34,29 @@ const mqttOptions = {
   reconnectPeriod: 1000,
 };
 
-// Connect to MQTT Broker
 const mqttClient = mqtt.connect(MQTT_BROKER_URL, mqttOptions);
 
-// MQTT Event Handlers
 mqttClient.on('connect', () => {
-  console.log(`✅ MQTT Connected to: ${MQTT_BROKER_URL}`);
-  
+  console.log(`MQTT Connected to: ${MQTT_BROKER_URL}`);
   mqttClient.subscribe(MQTT_TOPIC, { qos: 1 }, (err) => {
-    if (err) {
-      console.error('❌ MQTT Subscribe Error:', err);
-    } else {
-      console.log(`🔔 Subscribed to Topic: "${MQTT_TOPIC}" (QoS: 1)`);
-    }
+    if (err) console.error('MQTT Subscribe Error:', err);
+    else console.log(`Subscribed to Topic: "${MQTT_TOPIC}"`);
   });
 });
 
-mqttClient.on('error', (err) => {
-  console.error('❌ MQTT Connection Error:', err);
-});
+mqttClient.on('error', (err) => console.error('MQTT Connection Error:', err));
+mqttClient.on('close', () => console.log('MQTT Connection Closed'));
+mqttClient.on('reconnect', () => console.log('MQTT Reconnecting...'));
 
-mqttClient.on('close', () => {
-  console.log('⚠️ MQTT Connection Closed');
-});
-
-mqttClient.on('reconnect', () => {
-  console.log('🔃 MQTT Reconnecting...');
-});
-
-// Handle Incoming MQTT Messages
 mqttClient.on('message', async (topic, message) => {
   try {
-    const payload = message.toString();
-    const data = JSON.parse(payload);
-
-    console.log(`📩 MQTT Message [${topic}]:`, data);
-    io.emit('sensorData', data); // Emit data to all connected clients
-
-    // console.log('💾 Sensor data saved to DB',data);
+    const data = JSON.parse(message.toString());
+    io.emit('sensorData', data);
   } catch (error) {
-    console.error('❌ MQTT Message Processing Error:', error);
+    console.error('MQTT Message Processing Error:', error);
   }
 });
 
-// ====================== Express Server Setup ======================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({
@@ -89,34 +65,23 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Routes
 app.use('/api', router);
+app.get('/health', (req, res) => res.status(200).json({
+  status: 'healthy',
+  mqtt: mqttClient.connected ? 'connected' : 'disconnected',
+}));
 
-// Health Check Endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'healthy',
-    mqtt: mqttClient.connected ? 'connected' : 'disconnected',
-  });
-});
-
-// Graceful Shutdown
 process.on('SIGINT', () => {
-  console.log('🛑 Shutting down gracefully...');
   mqttClient.end();
   process.exit(0);
 });
 
-
-// Start Server
 (async () => {
   try {
-    await db(); // Initialize DB connection
-    app.listen(port, () => {
-      console.log(`🚀 Server running on http://localhost:${port}`);
-    });
+    await db();
+    httpServer.listen(port, () => console.log(`Server running on http://localhost:${port}`));
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    console.error('Failed to start server:', error);
     process.exit(1);
   }
 })();
