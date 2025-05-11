@@ -14,30 +14,33 @@ const ALERT_TYPES = [
 const ALERT_STATUSES = ['open', 'assigned', 'in_progress', 'resolved', 'closed'];
 
 // 1. Create New Alert
-const createAlert = async (req, res) => {
+const createAlert = async (data) => {
   try {
-    const { manholeId, sensorId, alertType, alertLevel, description } = req.body;
+    const { manholeId, sensorId, alertType, alertLevel, description } = data;
 
     // Validate input
     if (!manholeId || !alertType || !alertLevel) {
-      return res.status(400).json({
+      return {
         success: false,
-        message: 'Manhole ID, alert type and level are required'
-      });
+        message: 'Manhole ID, alert type and level are required',
+        statusCode: 400
+      };
     }
 
     if (!ALERT_TYPES.includes(alertType)) {
-      return res.status(400).json({
+      return {
         success: false,
-        message: `Invalid alert type. Valid types: ${ALERT_TYPES.join(', ')}`
-      });
+        message: `Invalid alert type. Valid types: ${ALERT_TYPES.join(', ')}`,
+        statusCode: 400
+      };
     }
 
     if (!ALERT_LEVELS.includes(alertLevel)) {
-      return res.status(400).json({
+      return {
         success: false,
-        message: `Invalid alert level. Valid levels: ${ALERT_LEVELS.join(', ')}`
-      });
+        message: `Invalid alert level. Valid levels: ${ALERT_LEVELS.join(', ')}`,
+        statusCode: 400
+      };
     }
 
     // Create new alert
@@ -60,18 +63,21 @@ const createAlert = async (req, res) => {
       await assignWorkerToAlert(newAlert._id);
     }
 
-    return res.status(201).json({
+    return {
       success: true,
       message: 'Alert created successfully',
+      statusCode: 201,
       data: newAlert
-    });
+    };
 
   } catch (error) {
-    console.error('Create alert error:', error);
-    return res.status(500).json({
+    console.error('Create alert error:', error.message);
+    return {
       success: false,
-      message: 'Internal server error'
-    });
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      statusCode: 500
+    };
   }
 };
 // 3. Update Alert Status
