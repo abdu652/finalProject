@@ -84,7 +84,7 @@ const signup = async (req, res) => {
 const signin = async (req, res) => {
   try {
     const { email, password } = req.body;
-
+    console.log('Signin request:', req.body);
     // Basic validation
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' });

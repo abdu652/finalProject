@@ -14,7 +14,7 @@ const port = process.env.PORT || 3000;
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: '*',
+    origin: "http://localhost:5173",
     methods: ['GET', 'POST'],
   },
 });
@@ -51,6 +51,7 @@ mqttClient.on('reconnect', () => console.log('MQTT Reconnecting...'));
 mqttClient.on('message', async (topic, message) => {
   try {
     const data = JSON.parse(message.toString());
+    console.log(`Received message on topic "${topic}":`, data);
     io.emit('sensorData', data);
   } catch (error) {
     console.error('MQTT Message Processing Error:', error);
@@ -70,7 +71,7 @@ app.get('/health', (req, res) => res.status(200).json({
   status: 'healthy',
   mqtt: mqttClient.connected ? 'connected' : 'disconnected',
 }));
-
+app.use('api',router);
 process.on('SIGINT', () => {
   mqttClient.end();
   process.exit(0);

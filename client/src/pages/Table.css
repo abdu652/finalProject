@@ -1,0 +1,31 @@
+.sensor-table {
+  width: 100%;
+  max-width: 600px;
+  margin: 2rem auto;
+  border-collapse: collapse;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.sensor-table th,
+.sensor-table td {
+  border: 1px solid #ddd;
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.sensor-table th {
+  background-color: #f0f0f0;
+  font-weight: 600;
+}
+
+.sensor-table td {
+  background-color: #fff;
+}
+
+.loading-text {
+  text-align: center;
+  font-size: 1.1rem;
+  color: #666;
+  margin-top: 2rem;
+}
