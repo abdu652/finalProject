@@ -4,25 +4,27 @@ import Manhole from '../models/manhole.model.js';
 import { checkThresholds, determineStatus } from '../helpers/checkThreshold.js';
 
 // 1. Create New Sensor Reading
-const createReading = async (req, res) => {
+const createReading = async (data) => {
   try {
-    const { manholeId, sensors, thresholds, lastCalibration } = req.body;
+    const { manholeId, sensors, thresholds, lastCalibration } = data;
 
     // Validate required fields
     if (!manholeId || !sensors) {
-      return res.status(400).json({
+      return {
         success: false,
-        message: 'Manhole ID and sensor data are required'
-      });
+        message: 'Manhole ID and sensor data are required',
+        statusCode: 400
+      };
     }
 
     // Verify manhole exists
     const manhole = await Manhole.findById(manholeId);
     if (!manhole) {
-      return res.status(404).json({
+      return {
         success: false,
-        message: 'Manhole not found'
-      });
+        message: 'Manhole not found',
+        statusCode: 404
+      };
     }
 
     // Check for alerts and determine status
@@ -59,22 +61,24 @@ const createReading = async (req, res) => {
       });
     }
 
-    return res.status(201).json({
+    return {
       success: true,
       message: 'Reading recorded',
+      statusCode: 201,
       data: {
         ...newReading.toObject(),
         manholeCode: manhole.code // Include manhole info in response
       }
-    });
+    };
 
   } catch (error) {
     console.error('Create reading error:', error);
-    return res.status(500).json({
+    return {
       success: false,
       message: 'Internal server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      statusCode: 500
+    };
   }
 };
 
