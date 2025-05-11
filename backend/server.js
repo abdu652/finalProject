@@ -4,10 +4,27 @@ import db from './configure/db.confige.js';
 import Sensor from './models/sensor.model.js';
 import router from './routes/index.js';
 import cors from 'cors';
+import {Server} from 'socket.io';
+import {createServer} from 'http';
+import dotenv from 'dotenv';
+dotenv.config();
+
 
 const app = express();
 const port = process.env.PORT || 3000;
+const io = new Server(createServer(app), {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+  },
+});
+io.on('connection', (socket)=>{
+  console.log('a user connected');
+  socket.on('disconnect', () => {
+    console.log('user disconnected');
+  });
 
+});
 // ====================== MQTT Configuration ======================
 const MQTT_BROKER_URL = process.env.MQTT_BROKER_URL || 'mqtt://broker.hivemq.com'; // Default: HiveMQ public broker
 const MQTT_TOPIC = process.env.MQTT_TOPIC || 'drainage/sensor-data';
@@ -55,6 +72,7 @@ mqttClient.on('message', async (topic, message) => {
     const data = JSON.parse(payload);
 
     console.log(`📩 MQTT Message [${topic}]:`, data);
+    io.emit('sensorData', data); // Emit data to all connected clients
 
     // console.log('💾 Sensor data saved to DB',data);
   } catch (error) {
