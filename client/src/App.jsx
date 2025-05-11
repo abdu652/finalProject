@@ -4,6 +4,7 @@ import CustomerView from './components/CustomerView'
 import DeliveryView from './components/DeliveryView'
 import Home from './pages/Home.jsx'
 import Register from './pages/Register'
+import Table from './pages/Table.jsx'
 import { verifyToken } from './services/auth'
 import {Routes, Route} from 'react-router-dom'
 function App() {
@@ -30,6 +31,7 @@ function App() {
         <Routes>
       !user ? (
         <Route path='/' element={<Home />} />
+        <Route path='/sensor' element={<Table />} />
          <Route path="/login" element={<LoginForm setUser={setUser} />} />
          <Route path="/register" element={<Register />} />
       ) : user.role === 'customer' ? (

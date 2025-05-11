@@ -3,7 +3,9 @@ import io from 'socket.io-client';
 import './Table.css';
 
 const Table = () => {
-  const [latestData, setLatestData] = useState(null);
+  const [latestData, setLatestData] = useState([]);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const socket = io('http://localhost:3000', {
@@ -13,15 +15,25 @@ const Table = () => {
 
     socket.on('connect', () => {
       console.log('Connected to socket.io server');
+      setConnectionStatus('connected');
+      setError(null);
     });
 
     socket.on('sensorData', (data) => {
       console.log('Received sensor data:', data);
-      setLatestData(data);
+      setLatestData(Array.isArray(data) ? data : [data]); // Handle both array and single object
+      setConnectionStatus('connected');
     });
 
     socket.on('disconnect', () => {
       console.log('Disconnected from socket.io server');
+      setConnectionStatus('disconnected');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Connection error:', err);
+      setConnectionStatus('error');
+      setError('Failed to connect to server');
     });
 
     return () => {
@@ -32,28 +44,36 @@ const Table = () => {
   return (
     <div className="table-container">
       <h2>Live Sensor Data</h2>
-      {latestData ? (
-        <table className="sensor-table">
-          <thead>
+      <div className="connection-status">
+        Status: {connectionStatus} {error && `- ${error}`}
+      </div>
+      
+      <table className="sensor-table">
+        <thead>
+          <tr>
+            <th>Sewage Level</th>
+            <th>Methane Level</th>
+            <th>Battery Level</th>
+          </tr>
+        </thead>
+        <tbody>
+          {latestData.length > 0 ? (
+            latestData.map((data, index) => (
+              <tr key={index}>
+                <td>{data.sewage ?? 'N/A'}</td>
+                <td>{data.methane ?? 'N/A'}</td>
+                <td>{data.battery ?? 'N/A'}</td>
+              </tr>
+            ))
+          ) : (
             <tr>
-              <th>Sewage Level</th>
-              <th>Methane Level</th>
-              <th>Battery Level</th>
+              <td colSpan="3">No data available</td>
             </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>{latestData.sewage}</td>
-              <td>{latestData.methane}</td>
-              <td>{latestData.battery}</td>
-            </tr>
-          </tbody>
-        </table>
-      ) : (
-        <p className="loading-text">Waiting for sensor data...</p>
-      )}
+          )}
+        </tbody>
+      </table>
     </div>
   );
 };
 
-export default
+export default Table;

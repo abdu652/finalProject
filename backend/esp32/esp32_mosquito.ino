@@ -1,52 +1,43 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 
-// WiFi credentials
+// WiFi Configuration
 const char* ssid = "Wokwi-GUEST";
 const char* password = "";
 
-// MQTT broker configuration
+// MQTT Configuration
 const char* mqtt_server = "broker.hivemq.com";
 const int mqtt_port = 1883;
-const int connection_timeout = 10000;
-const size_t MAX_PAYLOAD_SIZE = 2048; // Maximum allowed payload size in bytes
-
-// Topics
 const char* publish_topic = "drainage/sensor-data";
 const char* subscribe_topic = "manhole/commands";
+const char* status_topic = "manhole/status";
 
-// Sensor pins
-#define echoPin 12    // For sewage level
+// Hardware Configuration
 #define trigPin 13
+#define echoPin 12
 #define METHANE_PIN 34
-#define FLOW_SENSOR_PIN 35
 #define BATTERY_PIN 36
-
-// Thresholds
-const float MAX_DISTANCE = 100.0;  // cm
-const float MAX_GAS = 500.0;       // ppm
-const float MIN_FLOW = 5.0;        // cm/s
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
+
 unsigned long lastReconnectAttempt = 0;
 const unsigned long reconnectInterval = 5000;
-const unsigned long sensorUpdateInterval = 5000;
-unsigned long lastSensorUpdate = 0;
-String manholeId = "65d3a1b1a8b9c4e7f0a1b2c3"; // Replace with your actual ID
+const unsigned long publishInterval = 5000;
+unsigned long lastPublishTime = 0;
 
-void setup_wifi() {
+void setupWiFi() {
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
   WiFi.begin(ssid, password);
 
-  unsigned long startAttemptTime = millis();
-  while (WiFi.status() != WL_CONNECTED && 
-         millis() - startAttemptTime < connection_timeout) {
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
     delay(500);
     Serial.print(".");
+    attempts++;
   }
 
   if (WiFi.status() != WL_CONNECTED) {
@@ -59,182 +50,64 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 
-void callback(char* topic, byte* message, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("]: ");
-  
-  String messageTemp;
-  for (int i = 0; i < length; i++) {
-    messageTemp += (char)message[i];
-  }
-  Serial.println(messageTemp);
-}
-
 bool connectToMQTT() {
-  Serial.print("Attempting MQTT connection to ");
-  Serial.print(mqtt_server);
-  Serial.println("...");
-
-  String clientId = "ManholeSensor-";
+  Serial.print("Attempting MQTT connection...");
+  
+  String clientId = "ManholeMonitor-";
   clientId += String(random(0xffff), HEX);
 
-  if (mqttClient.connect(clientId.c_str())) {
-    Serial.println("Connected to MQTT broker!");
+  if (mqttClient.connect(clientId.c_str(), status_topic, 1, true, "disconnected")) {
+    Serial.println("connected");
+    
+    // Publish connection status
+    mqttClient.publish(status_topic, "connected", true);
+    
+    // Subscribe to commands
     if (mqttClient.subscribe(subscribe_topic)) {
       Serial.print("Subscribed to ");
       Serial.println(subscribe_topic);
-    } else {
-      Serial.println("Subscribe failed!");
+      return true;
     }
-    return true;
+    Serial.println("Subscribe failed!");
   } else {
-    Serial.print("Failed to connect, rc=");
-    Serial.print(mqttClient.state());
-    Serial.println();
-    return false;
+    Serial.print("failed, rc=");
+    Serial.println(mqttClient.state());
   }
+  return false;
 }
 
-float readSewageLevel() {
-  digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
-  digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trigPin, LOW);
-
-  int duration = pulseIn(echoPin, HIGH, 30000);
-  if (duration == 0) return -1;
-  return duration / 58.0; // Convert to cm
-}
-
-float readMethaneLevel() {
-  int sensorValue = analogRead(METHANE_PIN);
-  return map(sensorValue, 0, 4095, 0, 1000); // Map to 0-1000 ppm range
-}
-
-float readFlowRate() {
-  return random(0, 20); // cm/s
-}
-
-float readTemperature() {
-  return 25.0 + random(-5, 5)/10.0; // 20-30°C range
-}
-
-float readHumidity() {
-  return 50.0 + random(-20, 20); // 30-70% range
-}
-
-float readBatteryLevel() {
-  int sensorValue = analogRead(BATTERY_PIN);
-  return map(sensorValue, 0, 4095, 0, 100); // Percentage
-}
-
-String determineStatus(float sewageLevel, float methaneLevel, float flowRate) {
-  if (sewageLevel < 0 || sewageLevel > MAX_DISTANCE || 
-      methaneLevel > MAX_GAS || flowRate < MIN_FLOW) {
-    return "critical";
-  } else if (sewageLevel > MAX_DISTANCE * 0.8 || 
-             methaneLevel > MAX_GAS * 0.7 || 
-             flowRate < MIN_FLOW * 1.5) {
-    return "warning";
-  }
-  return "normal";
-}
-
-String getAlertTypes(float sewageLevel, float methaneLevel, float flowRate) {
-  String alerts = "[";
-  bool firstAlert = true;
-
-  if (sewageLevel < 0) {
-    alerts += "\"sensor_error\"";
-    firstAlert = false;
-  } else if (sewageLevel > MAX_DISTANCE) {
-    if (!firstAlert) alerts += ",";
-    alerts += "\"high_sewage_level\"";
-    firstAlert = false;
-  }
-
-  if (methaneLevel > MAX_GAS) {
-    if (!firstAlert) alerts += ",";
-    alerts += "\"high_methane\"";
-    firstAlert = false;
-  }
-
-  if (flowRate < MIN_FLOW) {
-    if (!firstAlert) alerts += ",";
-    alerts += "\"low_flow\"";
-  }
-
-  alerts += "]";
-  return alerts;
-}
-
-bool safePublish(const char* topic, const String& payload) {
-  // Check payload size
-  if (payload.length() > MAX_PAYLOAD_SIZE) {
-    Serial.println("Payload too large! Size: " + String(payload.length()));
-    return false;
-  }
-
-  // Attempt to publish
-  bool success = mqttClient.publish(topic, payload.c_str());
-  
-  if (!success) {
-    Serial.println("Publish failed! State: " + String(mqttClient.state()));
-    Serial.println("Payload size: " + String(payload.length()));
-    Serial.println("Payload content: " + payload);
-  }
-  
-  return success;
-}
-
-void sendSensorData() {
+void publishSensorData() {
   if (!mqttClient.connected()) {
-    Serial.println("MQTT not connected, can't send data");
+    Serial.println("Not connected, skipping publish");
     return;
   }
 
-  // Read sensor values
-  float sewageLevel = readSewageLevel();
-  float methaneLevel = readMethaneLevel();
-  float flowRate = readFlowRate();
-  float temperature = readTemperature();
-  float humidity = readHumidity();
-  float batteryLevel = readBatteryLevel();
-  String status = determineStatus(sewageLevel, methaneLevel, flowRate);
-  String alertTypes = getAlertTypes(sewageLevel, methaneLevel, flowRate);
+  // Test publish
+  if (!mqttClient.publish("manhole/test", "test")) {
+    Serial.println("Test publish failed!");
+    return;
+  }
+
+  // Simulated sensor readings
+  float sewageLevel = 10.5 + random(-5, 5) / 10.0;
+  float methaneLevel = random(200, 600);
+  float batteryLevel = random(80, 100);
 
   // Create JSON payload
   String payload = "{";
-  payload += "\"manholeId\":\"" + manholeId + "\",";
-  payload += "\"sensors\":{";
-  payload += "\"sewageLevel\":" + String(sewageLevel) + ",";
-  payload += "\"methaneLevel\":" + String(methaneLevel) + ",";
-  payload += "\"flowRate\":" + String(flowRate) + ",";
-  payload += "\"temperature\":" + String(temperature) + ",";
-  payload += "\"humidity\":" + String(humidity) + ",";
-  payload += "\"batteryLevel\":" + String(batteryLevel);
-  payload += "},";
-  payload += "\"thresholds\":{";
-  payload += "\"maxDistance\":" + String(MAX_DISTANCE) + ",";
-  payload += "\"maxGas\":" + String(MAX_GAS) + ",";
-  payload += "\"minFlow\":" + String(MIN_FLOW);
-  payload += "},";
-  payload += "\"status\":\"" + status + "\",";
-  payload += "\"alertTypes\":" + alertTypes;
+  payload += "\"sewage\":" + String(sewageLevel, 1) + ",";
+  payload += "\"methane\":" + String(methaneLevel, 0) + ",";
+  payload += "\"battery\":" + String(batteryLevel, 0);
   payload += "}";
 
-  // First try with a simple test payload
-  if (!safePublish("test/topic", "{\"test\":1}")) {
-    Serial.println("Basic test publish failed - connection issue");
-    return;
-  }
-
-  // Then try with our actual payload
-  if (!safePublish(publish_topic, payload)) {
-    Serial.println("Attempting to reconnect...");
-    connectToMQTT();
+  // Publish correctly (cast payload to const uint8_t* and use payload length)
+  if (mqttClient.publish(publish_topic, (const uint8_t*)payload.c_str(), payload.length(), false)) {
+    Serial.print("Published: ");
+    Serial.println(payload);
+  } else {
+    Serial.println("Publish failed!");
+    Serial.print("MQTT state: ");
+    Serial.println(mqttClient.state());
   }
 }
 
@@ -242,16 +115,17 @@ void setup() {
   Serial.begin(115200);
   randomSeed(analogRead(0));
 
-  // Initialize sensor pins
+  // Initialize hardware
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
   pinMode(METHANE_PIN, INPUT);
-  pinMode(FLOW_SENSOR_PIN, INPUT);
   pinMode(BATTERY_PIN, INPUT);
-  
-  setup_wifi();
+
+  setupWiFi();
+
   mqttClient.setServer(mqtt_server, mqtt_port);
-  mqttClient.setCallback(callback);
+  mqttClient.setKeepAlive(60);
+  mqttClient.setSocketTimeout(30);
 }
 
 void loop() {
@@ -264,16 +138,16 @@ void loop() {
       }
     }
   } else {
-    if (millis() - lastSensorUpdate >= sensorUpdateInterval) {
-      lastSensorUpdate = millis();
-      sendSensorData();
+    if (millis() - lastPublishTime > publishInterval) {
+      lastPublishTime = millis();
+      publishSensorData();
     }
   }
 
   mqttClient.loop();
-  
+
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi disconnected, reconnecting...");
-    setup_wifi();
+    setupWiFi();
   }
 }
