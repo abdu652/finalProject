@@ -10,6 +10,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
+const sensorData = []; // Array to store received sensor data
 const port = process.env.PORT || 3000;
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -19,9 +20,16 @@ const io = new Server(httpServer, {
   },
 });
 
+// WebSocket connection handling
 io.on('connection', (socket) => {
-  console.log('User connected');
-  socket.on('disconnect', () => console.log('User disconnected'));
+  console.log('Client connected');
+  
+  // Send current data to newly connected client
+  socket.emit('initialData', sensorData);
+  
+  socket.on('disconnect', () => {
+    console.log('Client disconnected');
+  });
 });
 
 const MQTT_BROKER_URL = process.env.MQTT_BROKER_URL || 'mqtt://broker.hivemq.com';
@@ -51,10 +59,22 @@ mqttClient.on('reconnect', () => console.log('MQTT Reconnecting...'));
 mqttClient.on('message', async (topic, message) => {
   try {
     const data = JSON.parse(message.toString());
-    console.log(`Received message on topic "${topic}":`, data);
-    io.emit('sensorData', data);
+    
+    // Add timestamp to the received data
+    const timestampedData = {
+      ...data,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Store the data in array (you might want to limit the array size)
+    sensorData.push(timestampedData);
+    
+    // Broadcast to all connected clients
+    io.emit('sensorData', timestampedData);
+    
+    console.log('Received sensor data:', timestampedData);
   } catch (error) {
-    console.error('MQTT Message Processing Error:', error);
+    console.error('Error processing MQTT message:', error);
   }
 });
 
@@ -67,11 +87,7 @@ app.use(cors({
 }));
 
 app.use('/api', router);
-app.get('/health', (req, res) => res.status(200).json({
-  status: 'healthy',
-  mqtt: mqttClient.connected ? 'connected' : 'disconnected',
-}));
-app.use('api',router);
+
 process.on('SIGINT', () => {
   mqttClient.end();
   process.exit(0);
