@@ -3,7 +3,7 @@ import io from 'socket.io-client';
 import './Table.css';
 
 const Table = () => {
-  const [sensorDataHistory, setSensorDataHistory] = useState([]);
+  const [sensorDataHistory, setSensorDataHistory] = useState();
   const [connectionStatus, setConnectionStatus] = useState('connecting');
   const [error, setError] = useState(null);
 
